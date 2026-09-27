@@ -1,0 +1,107 @@
+# 🏛️ Ouvidoria Semântica
+
+Pipeline de recuperação semântica para manifestações cidadãs, com comparação de representações textuais (BoW, TF-IDF e embeddings), detecção de duplicatas semânticas, chunking de textos longos e uma aplicação interativa em Streamlit.
+
+## Integrantes
+
+- Igor Nunes Moneta
+- Josenilton Cirne Ramalho Neto
+- Pedro Henrique Alves Vieira do Nascimento
+
+## Visão geral
+
+O projeto trabalha com um corpus de 40 manifestações cidadãs distribuídas em cinco categorias: **infraestrutura**, **saúde**, **segurança**, **educação** e **meio ambiente**. O fluxo geral é:
+
+```
+corpus → limpeza → embeddings → similaridade → busca/duplicatas → PCA ou t-SNE → interface Streamlit
+```
+
+Os textos são normalizados em português, convertidos em embeddings com Sentence Transformers, e comparados por similaridade de cosseno para alimentar busca semântica, detecção de duplicatas e visualização do espaço vetorial.
+
+## Estrutura do repositório
+
+```
+.
+├── análise_comparativa.ipynb        # Entrega 1 — BoW vs TF-IDF vs embeddings
+├── deteccao_duplicatas.ipynb        # Entrega 2 — detecção de duplicatas semânticas
+├── chunking_manifestacoes.ipynb     # Entrega 3 — chunking de manifestações longas
+├── app_ouvidoria.py                 # Aplicação Streamlit
+├── manifestacoes.csv                # Corpus de manifestações
+├── RELATORIO.pdf                    # Relatório técnico completo
+└── README.md
+```
+
+## 1. Comparação de representações (`análise_comparativa.ipynb`)
+
+Implementa BoW, TF-IDF e embeddings (`paraphrase-multilingual-MiniLM-L12-v2`) e compara a similaridade dos pares:
+
+- `M003` × `M017` — mesma ideia ("buraco enorme" vs "asfalto esburacado")
+- `M008` × `M022` — mesma ideia ("posto sem médico" vs "falta atendimento no PSF")
+- `M008` × `M031` — categorias diferentes (saúde vs iluminação), usado como controle
+
+BoW e TF-IDF dependem de sobreposição literal de palavras, por isso tendem a falhar em paráfrases. Embeddings capturam significado e contexto, sendo mais robustos para esses casos.
+
+## 2. Detecção de duplicatas (`deteccao_duplicatas.ipynb`)
+
+A função `detectar_duplicatas(textos, limiar=0.85)` calcula a matriz de similaridade de cosseno entre todos os embeddings e retorna os pares acima do limiar. O limiar 0.85 é um ponto de partida conservador e deve ser validado.
+
+O notebook compara os pares encontrados com seis pares duplicados conhecidos do corpus, calculando:
+
+- Verdadeiros positivos
+- Falsos positivos
+- Falsos negativos
+- Precisão e recall
+
+Também é gerado um heatmap da matriz de similaridade completa (40×40).
+
+## 3. Chunking (`chunking_manifestacoes.ipynb`)
+
+Cinco manifestações do corpus têm mais de 500 caracteres. O notebook usa `RecursiveCharacterTextSplitter` para comparar duas configurações:
+
+| Configuração | chunk_size | overlap |
+|---|---|---|
+| A | 300 | 30 |
+| B | 500 | 100 |
+
+O overlap preserva contexto entre chunks consecutivos. A configuração (500, 100) tende a manter mais contexto por chunk; a (300, 30) oferece maior granularidade para recuperação. Os chunks são projetados em PCA para inspeção visual de coesão.
+
+## 4. Aplicação Streamlit (`app_ouvidoria.py`)
+
+Interface com quatro abas:
+
+- **Busca Semântica** — o usuário digita uma descrição livre e recebe os top-k resultados mais similares, com destaque de cor por faixa de score (verde >0,7, laranja >0,5, cinza abaixo disso).
+- **Base Completa** — exibe todas as manifestações e permite gerar a matriz de similaridade completa.
+- **Espaço Vetorial** — reduz os embeddings para 2D via PCA ou t-SNE, coloridos por categoria oficial.
+- **Chunking** — o usuário cola um texto longo, escolhe uma das duas estratégias de chunking e visualiza os chunks gerados e parte de seus embeddings.
+
+Modelos de embedding disponíveis na sidebar:
+
+- `paraphrase-multilingual-MiniLM-L12-v2`
+- `BAAI/bge-small-pt-v1.5`
+
+`st.cache_resource` mantém o modelo carregado em memória; `st.cache_data` reutiliza embeddings já calculados.
+
+### Como rodar
+
+```bash
+pip install streamlit sentence-transformers scikit-learn pandas numpy seaborn matplotlib langchain-text-splitters
+streamlit run app_ouvidoria.py
+```
+
+## Dificuldades e decisões técnicas
+
+- **Granularidade vs. contexto**: textos longos exigem chunking, mas chunks pequenos podem separar informações da mesma denúncia.
+- **Limiar de duplicatas**: 0.85 reduz falsos positivos, mas precisa ser validado contra os pares conhecidos do corpus.
+- **Projeções (PCA/t-SNE)**: proximidade visual não é garantia de equivalência no espaço original — são apenas indicativos.
+
+## Organização da equipe
+
+| Integrante | Responsabilidade |
+|---|---|
+| Josenilton Cirne Ramalho Neto | Preparação do corpus, limpeza, análise das representações e notebooks de comparação |
+| Pedro Henrique Alves Vieira do Nascimento | Embeddings, detecção de duplicatas, chunking e análise das similaridades |
+| Igor Nunes Moneta | Aplicação Streamlit, visualizações, integração, testes e organização do relatório/documentação |
+
+## Conclusão
+
+O projeto integra representações esparsas e densas em um cenário de ouvidoria pública, evidenciando a diferença entre correspondência lexical e proximidade semântica. Trata textos longos com chunking, identifica possíveis duplicatas e oferece uma interface interativa para exploração do corpus e dos embeddings.
